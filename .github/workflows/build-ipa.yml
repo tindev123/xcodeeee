@@ -30,5 +30,9 @@ jobs:
           mkdir Payload
           cp -R "$APP" Payload/
           zip -qry "${{ inputs.job_id }}.ipa" Payload
-      - uses: actions/upload-artifact@v4
-        with: { name: ipa-${{ inputs.job_id }}, path: '*.ipa', retention-days: 1 }
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ipa-${{ inputs.job_id }}
+          path: '*.ipa'
+          retention-days: 1
