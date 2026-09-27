@@ -1,0 +1,34 @@
+name: Build IPA
+on:
+  workflow_dispatch:
+    inputs:
+      job_id: { required: true, type: string }
+      input_url: { required: true, type: string }
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download input ZIP
+        run: curl -fL --retry 3 '${{ inputs.input_url }}' -o project.zip
+      - name: Extract and locate project
+        run: |
+          mkdir src
+          unzip -q project.zip -d src
+          PROJECT=$(find src -name '*.xcodeproj' -type d | head -1)
+          WORKSPACE=$(find src -name '*.xcworkspace' -type d | head -1)
+          if [ -n "$WORKSPACE" ]; then echo "BUILD_KIND=workspace" >> "$GITHUB_ENV"; echo "BUILD_PATH=$WORKSPACE" >> "$GITHUB_ENV"; else echo "BUILD_KIND=project" >> "$GITHUB_ENV"; echo "BUILD_PATH=$PROJECT" >> "$GITHUB_ENV"; fi
+          test -n "$BUILD_PATH"
+      - name: Build unsigned app
+        run: |
+          NAME=$(basename "$BUILD_PATH" | sed -E 's/\.(xcodeproj|xcworkspace)$//')
+          xcodebuild -${BUILD_KIND} "$BUILD_PATH" -scheme "$NAME" -configuration Release -sdk iphoneos -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+      - name: Package IPA
+        run: |
+          APP=$(find build/Build/Products -path '*iphoneos/*.app' -type d | head -1)
+          test -n "$APP"
+          mkdir Payload
+          cp -R "$APP" Payload/
+          zip -qry "${{ inputs.job_id }}.ipa" Payload
+      - uses: actions/upload-artifact@v4
+        with: { name: ipa-${{ inputs.job_id }}, path: '*.ipa', retention-days: 1 }
